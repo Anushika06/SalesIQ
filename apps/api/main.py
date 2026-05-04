@@ -1,13 +1,20 @@
 import uuid
 import time
-from fastapi import FastAPI, Request, status
+import logging
+from fastapi import FastAPI, Request, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from google.cloud import logging as cloud_logging
-import asyncio
 
 from shared.firestore_client import db
 from shared.config import settings
+from pydantic import BaseModel
+
+# Use Python's built-in logging — no Google Cloud auth required locally
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("salesiq-api")
+
+class ResearchRequest(BaseModel):
+    company_name: str
 
 from routers import (
     prospect_research,
@@ -21,12 +28,11 @@ from routers import (
 
 app = FastAPI(title="SalesIQ API", version="1.0.0")
 
-# Setup CORS
-# In production, restrict to Firebase Hosting domain (e.g. https://<project>.web.app)
+# CORS — allow Vite dev server and Firebase Hosting
 origins = [
-    "http://localhost:5173",  # Vite default
+    "http://localhost:5173",
     f"https://{settings.VERTEX_AI_PROJECT}.web.app",
-    f"https://{settings.VERTEX_AI_PROJECT}.firebaseapp.com"
+    f"https://{settings.VERTEX_AI_PROJECT}.firebaseapp.com",
 ]
 
 app.add_middleware(
@@ -37,41 +43,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Setup structured logging
-logging_client = cloud_logging.Client()
-logger = logging_client.logger("salesiq-api-logger")
-
 @app.middleware("http")
 async def add_request_id_and_log(request: Request, call_next):
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
     start_time = time.time()
-    
+
     response = await call_next(request)
-    
-    process_time = time.time() - start_time
-    
-    logger.log_struct({
-        "event": "http_request",
-        "request_id": request_id,
-        "method": request.method,
-        "url": str(request.url),
-        "status_code": response.status_code,
-        "duration_ms": int(process_time * 1000)
-    }, severity="INFO")
-    
+
+    duration_ms = int((time.time() - start_time) * 1000)
+    logger.info(
+        f"{request.method} {request.url.path} → {response.status_code} ({duration_ms}ms) "
+        f"[req={request_id[:8]}]"
+    )
     response.headers["X-Request-ID"] = request_id
     return response
 
-# RFC 7807 Problem Details Error Handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.log_struct({
-        "event": "unhandled_exception",
-        "request_id": getattr(request.state, "request_id", "unknown"),
-        "error": str(exc)
-    }, severity="ERROR")
-    
+    logger.error(
+        f"Unhandled exception on {request.method} {request.url.path}: "
+        f"{type(exc).__name__}: {exc}",
+        exc_info=True,
+    )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
@@ -79,8 +73,8 @@ async def global_exception_handler(request: Request, exc: Exception):
             "title": "Internal Server Error",
             "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
             "detail": str(exc),
-            "instance": str(request.url)
-        }
+            "instance": str(request.url),
+        },
     )
 
 # Routers
@@ -92,17 +86,35 @@ app.include_router(ab_tester.router, prefix="/api/v1")
 app.include_router(call_prep.router, prefix="/api/v1")
 app.include_router(response_analyzer.router, prefix="/api/v1")
 
+@app.post("/api/v1/research/{lead_id}")
+async def trigger_research(lead_id: str, request: ResearchRequest):
+    from services.researcher import perform_research
+    result = await perform_research(lead_id, request.company_name)
+    return result
+
+@app.get("/api/v1/leads/{lead_id}")
+async def get_lead(lead_id: str, background_tasks: BackgroundTasks):
+    doc_ref = db.collection("leads").document(lead_id)
+    doc_snap = await doc_ref.get()
+
+    lead_data = doc_snap.to_dict() if doc_snap.exists else {"company": "Google", "name": "Sundar Pichai"}
+    company_name = lead_data.get("company", "Google")
+
+    from services.researcher import perform_research
+    background_tasks.add_task(perform_research, lead_id, company_name)
+
+    return {"status": "success", "message": f"Background tasks for {company_name} started."}
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint pinging Firestore."""
     try:
         from google.cloud import firestore
-        # Ping Firestore
         doc_ref = db.collection("health").document("ping")
         await doc_ref.set({"timestamp": firestore.SERVER_TIMESTAMP})
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         return JSONResponse(
             status_code=503,
-            content={"status": "unhealthy", "database": str(e)}
+            content={"status": "unhealthy", "database": str(e)},
         )

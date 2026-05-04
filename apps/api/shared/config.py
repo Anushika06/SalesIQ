@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     VERTEX_AI_LOCATION: str
     GEMINI_MODEL_NAME: str
     FIRESTORE_DB: str
+    SALESIQ_KEY_FILE: Optional[str] = None
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
     GOOGLE_CLOUD_PROJECT: Optional[str] = None
     
@@ -61,3 +62,16 @@ def load_settings() -> Settings:
             )
 
 settings = load_settings()
+
+# Ensure underlying Google SDKs can find the credentials from the .env file
+if settings.SALESIQ_KEY_FILE:
+    creds_path = settings.SALESIQ_KEY_FILE.strip('"').strip("'")
+    if not os.path.isabs(creds_path):
+        creds_path = os.path.abspath(creds_path)
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
+elif settings.GOOGLE_APPLICATION_CREDENTIALS:
+    # Strip any stray quotes from the .env file
+    creds_path = settings.GOOGLE_APPLICATION_CREDENTIALS.strip('"').strip("'")
+    if not os.path.isabs(creds_path):
+        creds_path = os.path.abspath(creds_path)
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path

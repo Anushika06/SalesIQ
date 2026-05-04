@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+import traceback
 
 from shared.models import MessageOptimizeRequest, OptimizedMessage
 from shared.auth import verify_token
@@ -14,4 +15,9 @@ async def optimize_draft_message(
     """
     Optimize a draft message based on prospect insights.
     """
-    return await optimize_message(request)
+    try:
+        return await optimize_message(request)
+    except Exception as e:
+        error_msg = f"Gemini/Optimization Error: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        raise HTTPException(status_code=500, detail=str(e))

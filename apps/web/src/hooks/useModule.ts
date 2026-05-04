@@ -6,7 +6,7 @@ const API_BASE = "http://localhost:8080/api/v1";
 export function useModule<TData, TVariables>(moduleEndpoint: string) {
   return useMutation<TData, Error, TVariables>({
     mutationFn: async (variables) => {
-      let token = "";
+      let token = "dev-token"; // fallback for dev mode
       if (auth.currentUser) {
         token = await auth.currentUser.getIdToken();
       }
