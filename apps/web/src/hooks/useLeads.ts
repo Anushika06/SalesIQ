@@ -13,7 +13,6 @@ export function useLeads() {
         id: doc.id,
         ...doc.data()
       }));
-      console.log("Successfully fetched leads:", leadsData);
       setLeads(leadsData);
       setLoading(false);
     }, (error) => {

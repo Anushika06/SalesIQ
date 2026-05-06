@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useModule } from "../hooks/useModule";
 import { doc, collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "../lib/firebase";
@@ -16,19 +16,15 @@ export default function LeadProfile() {
   
   const [history, setHistory] = useState<any[]>([]);
   const [briefs, setBriefs] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  console.log('CallBriefsTab (LeadProfile) mounted, leadId is:', id);
-
-  // Dedicated useEffect for Call Briefs with aggressive logging
+  // Dedicated useEffect for Call Briefs
   useEffect(() => {
     if (!id) return;
-    
-    console.log('useEffect triggered, attempting to fetch...');
     
     const briefsQ = query(collection(db, "leads", id, "call_briefs"));
     const unsubscribeBriefs = onSnapshot(briefsQ, (snap) => {
       const data = snap.docs.map(d => d.data());
-      console.log('Fetch successful, data:', data);
       setBriefs(data);
     }, (error) => { 
       console.error('Fetch failed:', error); 
@@ -65,8 +61,9 @@ export default function LeadProfile() {
     };
   }, [id]);
 
-  const handleOptimize = async () => {
+  const handleOptimize = useCallback(async () => {
     try {
+      setError(null);
       const result = await optimizeMutation.mutateAsync({
         draft_message: draft,
         prospect_brief_id: id,
@@ -75,12 +72,13 @@ export default function LeadProfile() {
       setOptimized(result);
     } catch (e) {
       console.error(e);
+      setError("Failed to optimize message. Please try again.");
     }
-  };
+  }, [draft, id, optimizeMutation]);
 
   return (
-    <div className="flex gap-6 h-full">
-      <div className="w-1/3 flex flex-col gap-6">
+    <main className="flex gap-6 h-full">
+      <aside className="w-1/3 flex flex-col gap-6">
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <h2 className="text-2xl font-bold mb-2">Lead Profile</h2>
           <p className="text-slate-500 mb-4">ID: {id}</p>
@@ -92,10 +90,10 @@ export default function LeadProfile() {
             {/* Example static data, would normally come from useLeads + Lead object */}
           </div>
         </div>
-      </div>
+      </aside>
 
-      <div className="w-2/3 bg-white rounded-xl shadow-sm border flex flex-col overflow-hidden">
-        <div className="flex p-3 bg-slate-50/50 border-b gap-2">
+      <section className="w-2/3 bg-white rounded-xl shadow-sm border flex flex-col overflow-hidden">
+        <nav aria-label="Lead profile tabs" className="flex p-3 bg-slate-50/50 border-b gap-2">
           {["overview", "history", "optimizer", "call_briefs"].map((tab) => (
             <button
               key={tab}
@@ -109,14 +107,16 @@ export default function LeadProfile() {
               {tab.replace("_", " ")}
             </button>
           ))}
-        </div>
+        </nav>
         
         <div className="p-8 flex-1 overflow-auto animate-in fade-in duration-300">
           {activeTab === "optimizer" && (
             <div className="animate-in fade-in duration-300">
               <h3 className="text-xl font-bold mb-6 text-slate-800">Message Optimizer</h3>
+              {error && <div className="p-3 mb-4 text-sm text-red-600 bg-red-50 rounded-lg border border-red-100">{error}</div>}
               <div className="relative">
                 <textarea
+                  aria-label="Draft message"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   className="w-full h-40 p-5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none resize-none mb-6 transition-all text-slate-700 placeholder-slate-400 shadow-inner"
@@ -126,7 +126,8 @@ export default function LeadProfile() {
               <button 
                 onClick={handleOptimize}
                 disabled={optimizeMutation.isPending || !draft}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-medium hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 transition-all shadow-md hover:shadow-lg hover:shadow-blue-500/25 flex items-center gap-2"
+                aria-disabled={optimizeMutation.isPending || !draft}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-medium hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 transition-all shadow-md hover:shadow-lg hover:shadow-blue-500/25 flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
               >
                 {optimizeMutation.isPending ? "✨ Optimizing..." : "✨ Optimize Message"}
               </button>
@@ -305,7 +306,7 @@ export default function LeadProfile() {
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
