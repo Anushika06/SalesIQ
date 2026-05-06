@@ -11,8 +11,12 @@ async def perform_research(lead_id: str, company_name: str) -> dict:
     # Check if already exists to save API tokens
     doc_snap = await doc_ref.get()
     if doc_snap.exists:
-        logger.info(f"Research for {company_name} already exists. Skipping.")
-        return doc_snap.to_dict()
+        existing_data = doc_snap.to_dict() or {}
+        summary = existing_data.get("summary", "")
+        if "Could not generate" not in summary and "N/A" not in summary:
+            logger.info(f"Research for {company_name} already exists. Skipping.")
+            return existing_data
+        logger.info(f"Existing research for {company_name} contains placeholder data. Forcing regeneration.")
 
     prompt = f"""
     Perform deep prospect research on the company: {company_name}.
@@ -26,7 +30,10 @@ async def perform_research(lead_id: str, company_name: str) -> dict:
     
     try:
         # Trigger Gemini
-        response = await generate(prompt)
+        response = await generate(
+            system_prompt="You are an expert sales intelligence researcher.",
+            user_prompt=prompt
+        )
         
         # Parse the JSON response
         if isinstance(response, str):

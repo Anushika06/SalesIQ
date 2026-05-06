@@ -3,9 +3,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "./hooks/useAuth";
 import Dashboard from "./pages/Dashboard";
 import LeadProfile from "./pages/LeadProfile";
-import Simulator from "./pages/Simulator";
-import ABTester from "./pages/ABTester";
-import FollowUpQueue from "./pages/FollowUpQueue";
 
 const queryClient = new QueryClient();
 
@@ -37,9 +34,11 @@ function Layout({ children }: { children: React.ReactNode }) {
           <h1 className="text-2xl font-bold text-blue-600">SalesIQ</h1>
           <nav className="flex gap-4">
             <Link to="/" className="text-slate-600 hover:text-slate-900 font-medium">Dashboard</Link>
+            {/* MVP Scope: Hidden for now
             <Link to="/simulator" className="text-slate-600 hover:text-slate-900 font-medium">Simulator</Link>
             <Link to="/ab-tester" className="text-slate-600 hover:text-slate-900 font-medium">A/B Tester</Link>
             <Link to="/followups" className="text-slate-600 hover:text-slate-900 font-medium">Queue</Link>
+            */}
           </nav>
         </div>
         <div className="flex items-center gap-4">
@@ -62,9 +61,6 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/leads/:id" element={<LeadProfile />} />
-            <Route path="/simulator" element={<Simulator />} />
-            <Route path="/ab-tester" element={<ABTester />} />
-            <Route path="/followups" element={<FollowUpQueue />} />
           </Routes>
         </Layout>
       </BrowserRouter>

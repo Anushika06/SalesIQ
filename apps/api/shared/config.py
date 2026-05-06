@@ -55,7 +55,7 @@ def load_settings() -> Settings:
             return Settings(
                 VERTEX_AI_PROJECT=os.getenv("VERTEX_AI_PROJECT", "promptwars"),
                 VERTEX_AI_LOCATION=os.getenv("VERTEX_AI_LOCATION", "us-central1"),
-                GEMINI_MODEL_NAME=os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-pro"),
+                GEMINI_MODEL_NAME=os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash"),
                 FIRESTORE_DB=os.getenv("FIRESTORE_DB", "(default)"),
                 GOOGLE_APPLICATION_CREDENTIALS=os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
                 GOOGLE_CLOUD_PROJECT=project_id,

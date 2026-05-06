@@ -29,17 +29,17 @@ if not os.path.exists(_KEY_PATH):
     )
 
 # Build an explicit credentials object — bypasses ADC / user credential collision
-_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 credentials = service_account.Credentials.from_service_account_file(
-    _KEY_PATH, scopes=_SCOPES
+    _KEY_PATH
 )
+scoped_credentials = credentials.with_scopes(['https://www.googleapis.com/auth/cloud-platform'])
 local_logger.info(f"Loaded service account: {credentials.service_account_email}")
 
 # ── Vertex AI init ───────────────────────────────────────────────────────────
 vertexai.init(
     project=settings.VERTEX_AI_PROJECT,
-    location=settings.VERTEX_AI_LOCATION,
-    credentials=credentials,          # explicit — no ADC fallback
+    location='global',
+    credentials=scoped_credentials,          # explicit — no ADC fallback
 )
 
 # ── Retry helper ─────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ async def generate(
     try:
         # Pass credentials directly into the model — the nuclear fix
         model = GenerativeModel(
-            model_name=settings.GEMINI_MODEL_NAME,
+            model_name="gemini-2.5-flash",
             system_instruction=system_prompt,
         )
 
